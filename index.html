@@ -136,6 +136,8 @@
       width: 100%;
       max-width: 1000px;
       margin: 0 auto;
+      position: relative; /* 新增：让居中图标有定位基准 */
+      cursor: pointer;    /* 新增：提示鼠标这里可点击 */
     }
 
     .video-wrapper {
@@ -169,6 +171,34 @@
       z-index: 5;
       pointer-events: none;
       backdrop-filter: blur(4px);
+    }
+
+    /* 新增：居中的播放/暂停图标样式 */
+    .play-pause-overlay {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 64px;
+      height: 64px;
+      background-color: rgba(0, 0, 0, 0.7);
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      z-index: 10;
+      pointer-events: none; /* 让点击事件穿透 */
+      opacity: 0;           /* 播放时默认不可见 */
+      transition: opacity 0.3s ease, transform 0.2s ease;
+      backdrop-filter: blur(4px);
+    }
+
+    /* 新增：暂停时的状态 */
+    .play-pause-overlay.is-paused {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1.1);
     }
 
     /* 移动端自适应：屏幕小于 768px 时改为上下排列 */
@@ -321,6 +351,10 @@
             <span class="video-label label-bottom-left">CAVC (w HEVC) bpp=0.016</span>
           </div>
 
+          <div id="play-pause-overlay" class="play-pause-overlay">
+            <i class="fas fa-play" style="margin-left: 4px;"></i>
+          </div>
+
         </div>
         <h2 class="subtitle has-text-centered mt-4">
           Visual comparisons in TumTraf. CAVC achieves superior detection performance compared to using HEVC alone.
@@ -365,13 +399,34 @@
 
 <script>
   document.addEventListener('DOMContentLoaded', function() {
+    const container = document.getElementById('comparison-container');
     const videoLeft = document.querySelector('.video-left');
     const videoRight = document.querySelector('.video-right');
+    const overlay = document.getElementById('play-pause-overlay'); // 新增：获取图标层
 
-    if(videoLeft && videoRight) {
-      // 监听左侧视频，控制右侧视频同步
-      videoLeft.addEventListener('play', () => videoRight.play());
-      videoLeft.addEventListener('pause', () => videoRight.pause());
+    if(container && videoLeft && videoRight) {
+      
+      // 新增：点击容器区域，切换左侧视频状态
+      container.addEventListener('click', () => {
+        if (videoLeft.paused) {
+          videoLeft.play();
+        } else {
+          videoLeft.pause();
+        }
+      });
+
+      // 修改：将右侧视频和图标的显示/隐藏，全部绑定到左侧视频的状态变化上
+      videoLeft.addEventListener('play', () => {
+        videoRight.play();
+        overlay.classList.remove('is-paused'); // 播放时隐藏图标
+      });
+
+      videoLeft.addEventListener('pause', () => {
+        videoRight.pause();
+        overlay.classList.add('is-paused'); // 暂停时显示图标
+      });
+
+      // 保留：处理拖拽进度条或视频循环播放时的帧同步
       videoLeft.addEventListener('seeking', () => {
         videoRight.currentTime = videoLeft.currentTime;
       });
@@ -379,7 +434,7 @@
         videoRight.currentTime = videoLeft.currentTime;
       });
 
-      // 双保险：如果用户用某些插件强行控制了右侧视频，也要反向同步左侧
+      // 双保险：反向同步，防止浏览器某些插件打乱节奏
       videoRight.addEventListener('play', () => videoLeft.play());
       videoRight.addEventListener('pause', () => videoLeft.pause());
     }
