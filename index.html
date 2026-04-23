@@ -129,68 +129,37 @@
   </script>
 
   <style>
-    .comparison-slider {
-      position: relative;
+    .side-by-side-comparison {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
       width: 100%;
-      max-width: 960px;
-      aspect-ratio: 16 / 9;
-      overflow: hidden;
+      max-width: 1000px;
       margin: 0 auto;
+    }
+
+    .video-wrapper {
+      position: relative;
+      flex: 1;
       border-radius: 8px;
+      overflow: hidden;
       box-shadow: 0 4px 10px rgba(0,0,0,0.1);
       background-color: #000;
+      aspect-ratio: 16 / 9;
     }
-    
-    .comparison-slider video {
-      position: absolute;
-      top: 0;
-      left: 0;
+
+    .video-wrapper video {
       width: 100%;
       height: 100%;
       object-fit: cover;
-    }
-    
-    .video-top {
-      clip-path: polygon(0 0, 50% 0, 50% 100%, 0 100%);
-    }
-    
-    .slider-handle {
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      left: 50%;
-      width: 4px;
-      background-color: white;
-      cursor: ew-resize;
-      transform: translateX(-50%);
-      z-index: 10;
-    }
-    
-    .slider-handle::after {
-      content: '< >';
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 40px;
-      height: 40px;
-      background-color: white;
-      color: #333;
-      border-radius: 50%;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: bold;
-      font-family: monospace;
-      font-size: 16px;
+      display: block;
     }
 
-    /* 视频名称标签基础样式 */
     .video-label {
       position: absolute;
-      top: 16px;
-      padding: 6px 14px;
+      top: 12px;
+      left: 12px;
+      padding: 6px 12px;
       background-color: rgba(0, 0, 0, 0.6);
       color: #ffffff;
       font-family: 'Inter', sans-serif;
@@ -198,16 +167,19 @@
       font-weight: 600;
       border-radius: 6px;
       z-index: 5;
-      pointer-events: none; /* 必须设置：防止阻挡滑动拖拽事件 */
-      backdrop-filter: blur(4px); /* 毛玻璃效果 */
+      pointer-events: none;
+      backdrop-filter: blur(4px);
     }
 
-    .label-left {
-      left: 16px;
-    }
-
-    .label-right {
-      right: 16px;
+    /* 移动端自适应：屏幕小于 768px 时改为上下排列 */
+    @media screen and (max-width: 768px) {
+      .side-by-side-comparison {
+        flex-direction: column;
+        gap: 12px;
+      }
+      .video-wrapper {
+        width: 100%;
+      }
     }
   </style>
 </head>
@@ -337,17 +309,21 @@
     <div class="columns is-centered has-text-centered mb-4">
       <div class="column is-full">
         
-        <div class="comparison-slider" id="slider-container">
-          <video class="video-bottom" src="static/videos/hevc_tn1.mp4" autoplay loop muted playsinline></video>
-          <span class="video-label label-right">HEVC bpp=0.016</span>
+        <div class="side-by-side-comparison" id="comparison-container">
           
-          <video class="video-top" src="static/videos/cavc_tn1.mp4" autoplay loop muted playsinline></video>
-          <span class="video-label label-left">CAVC (w HEVC) bpp=0.016</span>
-          
-          <div class="slider-handle" id="slider-handle"></div>
+          <div class="video-wrapper">
+            <video class="video-left" src="static/videos/hevc_compressed.mp4" autoplay loop muted playsinline></video>
+            <span class="video-label label-top-left">HEVC</span>
+          </div>
+
+          <div class="video-wrapper">
+            <video class="video-right" src="static/videos/cavc_compressed.mp4" autoplay loop muted playsinline></video>
+            <span class="video-label label-top-left">CAVC (Ours)</span>
+          </div>
+
         </div>
         <h2 class="subtitle has-text-centered mt-4">
-          Visual comparisons on TUMTraf. CAVC achieves superior detection results compared to using HEVC alone.
+          <b>Fig. 5.</b> Visual comparisons on CityAlley in UVG. CAVC achieves superior LPIPS and PSNR metrics at lower bitrates compared to using HEVC alone.
         </h2>
       </div>
     </div>
@@ -389,45 +365,23 @@
 
 <script>
   document.addEventListener('DOMContentLoaded', function() {
-    const container = document.getElementById('slider-container');
-    const topVideo = document.querySelector('.video-top');
-    const bottomVideo = document.querySelector('.video-bottom');
-    const handle = document.getElementById('slider-handle');
+    const videoLeft = document.querySelector('.video-left');
+    const videoRight = document.querySelector('.video-right');
 
-    if(container && topVideo && bottomVideo && handle) {
-      let isDragging = false;
+    if(videoLeft && videoRight) {
+      // 监听左侧视频，控制右侧视频同步
+      videoLeft.addEventListener('play', () => videoRight.play());
+      videoLeft.addEventListener('pause', () => videoRight.pause());
+      videoLeft.addEventListener('seeking', () => {
+        videoRight.currentTime = videoLeft.currentTime;
+      });
+      videoLeft.addEventListener('seeked', () => {
+        videoRight.currentTime = videoLeft.currentTime;
+      });
 
-      // 监听拖动事件
-      handle.addEventListener('mousedown', () => isDragging = true);
-      container.addEventListener('touchstart', () => isDragging = true);
-
-      window.addEventListener('mouseup', () => isDragging = false);
-      window.addEventListener('touchend', () => isDragging = false);
-
-      function moveSlider(e) {
-        if (!isDragging) return;
-        
-        const rect = container.getBoundingClientRect();
-        let clientX = e.clientX || (e.touches && e.touches[0].clientX);
-        let x = clientX - rect.left;
-        
-        // 限制拖动范围在容器内
-        x = Math.max(0, Math.min(x, rect.width));
-        let percentage = (x / rect.width) * 100;
-        
-        // 动态更新裁切区域和把手位置
-        topVideo.style.clipPath = `polygon(0 0, ${percentage}% 0, ${percentage}% 100%, 0 100%)`;
-        handle.style.left = `${percentage}%`;
-      }
-
-      window.addEventListener('mousemove', moveSlider);
-      container.addEventListener('touchmove', moveSlider);
-      
-      // 保证上下视频播放完全同步，防止对比时画面出现偏差
-      bottomVideo.addEventListener('play', () => topVideo.play());
-      bottomVideo.addEventListener('pause', () => topVideo.pause());
-      bottomVideo.addEventListener('seeking', () => topVideo.currentTime = bottomVideo.currentTime);
-      bottomVideo.addEventListener('seeked', () => topVideo.currentTime = bottomVideo.currentTime);
+      // 双保险：如果用户用某些插件强行控制了右侧视频，也要反向同步左侧
+      videoRight.addEventListener('play', () => videoLeft.play());
+      videoRight.addEventListener('pause', () => videoLeft.pause());
     }
   });
 </script>
